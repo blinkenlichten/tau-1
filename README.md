@@ -6,11 +6,8 @@
 > export DEPENDS_ROOT=$PWD/build_root
 > cd ./external
 
-## Google protobuf
 
-Install it into the system or compile it and put it into $DEPENDS_ROOT directory.
-
-## ZeroMQ
+## ZeroMQ, CZMQ, Malamute, FTY-proto
 
 Lets get ZeroMQ + Malamute into dependencies.
 Please, install packages "libtool m4 automake"
@@ -20,7 +17,8 @@ git clone git://github.com/jedisct1/libsodium.git
 git clone git://github.com/zeromq/libzmq.git
 git clone git://github.com/zeromq/czmq.git
 git clone git://github.com/zeromq/malamute.git
-for project in libsodium libzmq czmq malamute; do
+git clone git://github.com/42ity/fty-proto.git
+for project in libsodium libzmq czmq malamute fty-proto; do
     cd $project
     ./autogen.sh
     CFLAGS="-I$DEPENDS_ROOT/include" LDFLAGS="-L$DEPENDS_ROOT/lib" ./configure --prefix=$DEPENDS_ROOT 
