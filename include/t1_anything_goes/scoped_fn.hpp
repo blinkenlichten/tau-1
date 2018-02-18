@@ -2,6 +2,7 @@
 #define SCOPED_FN_H
 
 #ifdef __cplusplus
+#include <utility>
 
 struct VoidOp { void operator()(){ }};
 
@@ -34,7 +35,7 @@ public:
 };
 
 #define ON_SCOPE_EXIT(NAME, ON_EXIT_STATEMENT) \
-  auto fn_scoped_##NAME = [&](){ (ON_EXIT_STATEMENT); }; \
+  auto fn_scoped_##NAME = [&](){ ON_EXIT_STATEMENT; }; \
   ScopedInvoke<decltype(fn_scoped_##NAME )>(std::move(fn_scoped_##NAME));
 
 /*using namespace std;

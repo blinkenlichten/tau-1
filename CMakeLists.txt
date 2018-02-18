@@ -24,9 +24,6 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_definitions("-std=c++1z")
 
-if(MEMADDR_SANITIZER)
-  add_definitions("-fsanitize=address")
-endif()
 
 add_subdirectory(src)
 add_subdirectory(src_gui)
