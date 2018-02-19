@@ -1,10 +1,19 @@
 #ifndef TIMINGUTILS_H
 #define TIMINGUTILS_H
 
-namespace TimingUtils {
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-    /** Get current time of day starting from 00:00 in seconds.*/
-    double getTimeOfDay();
+/** Get current time of day starting from 00:00 in seconds.*/
+double get_time_of_day();
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+namespace TimingUtils {
 
     class LapTimer
     {
@@ -24,5 +33,6 @@ namespace TimingUtils {
         double mLastTick;
     };
 }
+#endif //#ifdef __cplusplus
 
 #endif // TIMINGUTILS_H

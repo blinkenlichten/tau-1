@@ -8,7 +8,7 @@ option(BUILD_UI "Compile UI that depends on Qt5." ON)
 option(MEMADDR_SANITIZER "Turn on memory sanitizer" ON)
 
 ## Where to look for Qt5:
-set(QT5_SEARCH_PATH $ENV{HOME}/Qt/5.10.0 CACHE PATH "Qt5 search path")
+set(QT5_SEARCH_PATH $ENV{HOME}/Qt/5.10.1 CACHE PATH "Qt5 search path")
 set(QT_QMAKE_EXECUTABLE ${QT5_SEARCH_PATH}/gcc_64/bin/qmake CACHE PATH "Qt5 qmake path for GCC")
 ##-------------------------------------------------------------------------
 

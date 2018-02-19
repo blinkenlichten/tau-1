@@ -1,9 +1,4 @@
 #include "timingutils.h"
-
-namespace TimingUtils
-{
-
-/*----------------------------------------------------------------------------*/
 #if defined(__unix) || defined(__APPLE__)
 #include <sys/time.h>
 #include <unistd.h>
@@ -16,7 +11,10 @@ namespace TimingUtils
 #define snprintf _snprintf_s
 #endif
 
-double getTimeOfDay()
+
+extern "C"
+{
+double get_time_of_day()
 {
 #if defined(__unix) || defined(__APPLE__)
     struct timeval tv;
@@ -33,22 +31,27 @@ double getTimeOfDay()
     return 0;
 #endif
 }
-/*----------------------------------------------------------------------------*/
+
+}//extern "C"
+
+//------------------------------------------------------------------------------
+namespace TimingUtils
+{
 LapTimer::LapTimer()
 {
-    mLastTick = getTimeOfDay();
+    mLastTick = get_time_of_day();
 }
-//------------------------------------------------------------------------------
+
 double LapTimer::lapTime()
 {
    double t_old = mLastTick;
-   mLastTick = getTimeOfDay();
+   mLastTick = get_time_of_day();
    return mLastTick - t_old;
 }
 
 double LapTimer::elapsed()
 {
-   return getTimeOfDay()-mLastTick;
+   return get_time_of_day()-mLastTick;
 }
 
 //------------------------------------------------------------------------------
