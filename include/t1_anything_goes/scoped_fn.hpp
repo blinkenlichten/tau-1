@@ -55,6 +55,34 @@ int main()
     return 0;
 }*/
 
+template<typename PtrType, class FnDisposer>
+class TDisposableUniquePointer
+{
+public:
+    typedef TDisposableUniquePointer<PtrType, FnDisposer> __TBase;
+
+    PtrType m_ptr = nullptr;
+    FnDisposer m_func;
+    TDisposableUniquePointer() = default;
+    TDisposableUniquePointer(PtrType object) : m_ptr(object)  {   }
+
+    TDisposableUniquePointer(PtrType object, FnDisposer&& disp)
+        : m_ptr(object), m_func(std::move(disp))
+    {   }
+    PtrType get() const { return m_ptr; }
+    bool empty() const { return nullptr == m_ptr;}
+    void reset(PtrType object)
+    {
+        if (m_ptr)
+            m_func(release());
+        m_ptr = object;
+    }
+    PtrType release() { PtrType val = nullptr; std::swap(m_ptr, val); return val;}
+
+    virtual ~TDisposableUniquePointer()
+    { if (m_ptr) m_func(release()); }
+};
+
 #endif //__cplusplus
 
 #endif // SCOPED_FN_H
