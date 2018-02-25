@@ -6,45 +6,38 @@
 extern "C"
 {
 #endif //__cplusplus
-//-----------------------------------------------------------------------------
-enum DATA_PRODUCERS
+
+enum METRICS_DATA_PRODUCER
 { METRICS, ALERT, ACTION, LOG, NONE_LAST};
-//-----------------------------------------------------------------------------
+
 static const char* g_data_producers_names[] = {"METRICS", "ALERT", "ACTION", "LOG", "NONE"};
-static const char* name_producer(DATA_PRODUCERS item) { return g_data_producers_names[(int)item];}
+static const char* name_producer(METRICS_DATA_PRODUCER item) { return g_data_producers_names[(int)item];}
 //-----------------------------------------------------------------------------
 struct metric_func_err_t
 {
     void (*on_error)(size_t msgLen, const char* message, void* arg_data);
     void* arg_data;
-#if __cplusplus
+#ifdef __cplusplus
     metric_func_err_t() : on_error(nullptr), arg_data(nullptr)
     { }
 #endif
 };
 //-----------------------------------------------------------------------------
-// simple metrics data structure.
-struct metric_param_t
-{
-    const char* name;
-    const char* value;
-    const char* unit;
-    uint32_t time_to_live;
-#if __cplusplus
-    metric_param_t()
-        : name(nullptr), value(nullptr), unit(nullptr), time_to_live(0)
-    { }
-#endif //c++
-};
-//-----------------------------------------------------------------------------
 static const char* g_mlm_metrics_address = "metrics_events";
 static const int g_metrics_timeout = 5000;
 //-----------------------------------------------------------------------------
-/** Send simple metric data.
- Connect a source/producer of the metrics data.
+struct t1_metrics_ctx;
+
+/** Function pointer that must point to a function
+ * performing connection of a a source/producer of the metrics data to the Malamute data broker.
+ *
+ * @param ctx: passed by value to make sure there won't be shared state of any kind,
+ * just the variables for this particular moment of connection.
+ *
  @return connection client pointer, caller cares about invoking mlm_client_destroy((mlm_client_t*)ptr);
 */
-mlm_client_t* t1_metrics_emitter_connect(const char* endpoint, int timeout, metric_func_err_t p_error_fn);
+typedef mlm_client_t* (*fn_mlm_connect_t)
+    (t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn);
 
 /** Send simple metric data.
  *
@@ -59,19 +52,11 @@ mlm_client_t* t1_metrics_emitter_connect(const char* endpoint, int timeout, metr
    @param param: simple send data for metrics;
    @param p_error_fn: optional on_error() function pointer; here p_error_fn.arg_data is always NULL;
  */
-bool t1_send_metrics
-(mlm_client_t *producer,
- const char* endpoint,//"ipc://@/malamute"
- metric_param_t param,
- metric_func_err_t p_error_fn);
-//-----------------------------------------------------------------------------
-/** Send simple metric data.
- Connect to a source of metrics data.
- @return consumer connection client, caller cares about invoking mlm_client_destroy((mlm_client_t*)ptr);
-*/
-mlm_client_t* t1_metrics_receiver_connect(const char* endpoint, int timeout, metric_func_err_t p_error_fn);
+typedef bool (*fn_send_metrics_t)
+    (t1_metrics_ctx ctx, mlm_client_t *client,
+     zmsg_t** p_data_zmsg, metric_func_err_t p_error_fn);
 
-/** Send simple metric data.
+/** Receive metric data.
  * @return: (fty_proto_t*) decoded message pointer that caller MUST DESTROY
  * via fty_proto_destroy(pointer) after consuming it; the value MAY BE NULL.
 
@@ -88,9 +73,30 @@ mlm_client_t* t1_metrics_receiver_connect(const char* endpoint, int timeout, met
 
    @param endpoint: IPC endpoint, usually "ipc://@/malamute".
  */
-fty_proto_t* t1_receive_metrics(mlm_client_t* consumer);
-//read the parameters: {name, unit, value}
-metric_param_t t1_metrics_decode(fty_proto_t* msg);
+typedef zmsg_t* (*fn_receive_metrics_t)(t1_metrics_ctx ctx, mlm_client_t* client);
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+struct t1_metrics_ctx
+{
+    const char* mlm_address;
+    int timeout;
+    METRICS_DATA_PRODUCER data_type;
+    fn_mlm_connect_t pfn_connect_emitter;
+    fn_mlm_connect_t pfn_connect_consumer;
+    fn_send_metrics_t pfn_send;
+    fn_receive_metrics_t pfn_receive;
+    metric_func_err_t fn_error/*reports errors in this context*/, fn_log/*info logs for the context*/;
+    void* arbitrary;
+#ifdef __cplusplus
+    t1_metrics_ctx() { ::memset(this, 0x00, sizeof(t1_metrics_ctx)); }
+#endif
+};
+
+t1_metrics_ctx t1_init_metrics(METRICS_DATA_PRODUCER type);
+
+/// deallocate or simply 0-fill structure's pointer. @return 0-filled structure.
+t1_metrics_ctx/*don't ignore it*/ t1_destroy_metrics(t1_metrics_ctx context);
+//-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 #ifdef __cplusplus
 }//extern "C"
@@ -98,41 +104,26 @@ metric_param_t t1_metrics_decode(fty_proto_t* msg);
 
 #ifdef __cplusplus
 #include <memory>
-#include <deque>
-#include "t1_anything_goes/scoped_fn.hpp"
 
 extern void mlm_client_destroy(mlm_client_t*);
 
 
 namespace Tau1
 {
-struct MlmClientDeleter { void operator()(mlm_client_t* cl) { if (cl) mlm_client_destroy(cl);} };
-struct ZmsgDeleter { void operator()(zmsg_t* msg) { auto temp = msg; if (temp) zmsg_destroy(&temp); } };
-struct FtyProtoDeleter { void operator()(fty_proto_t* msg) { auto temp = msg; if(temp) fty_proto_destroy(&temp);} };
+struct MlmClientDeleter { void operator()(mlm_client_t* cl) { mlm_client_destroy(cl);} };
+struct ZmsgDeleter { void operator()(zmsg_t* msg) { zmsg_destroy(&msg); } };
 
-typedef TDisposableUniquePointer<mlm_client_t*,MlmClientDeleter> MlmClientUPtr;
+typedef std::unique_ptr<mlm_client_t,MlmClientDeleter> MlmClientUPtr;
+typedef std::unique_ptr<zmsg_t, ZmsgDeleter> ZmsgUPtr;
 
-typedef TDisposableUniquePointer<zmsg_t*, ZmsgDeleter> ZmsgUPtr;
-
-class FtyProtoUptr : public TDisposableUniquePointer<fty_proto_t*, FtyProtoDeleter>
-{
-public:
-    using __TBase::__TBase;
-    //constructor that will do the decoding into FTY proto and destroy incoming message.
-    FtyProtoUptr(ZmsgUPtr&& msg)
-    {
-        ZmsgUPtr local = std::move(msg);
-        zmsg_t* raw = local.release();
-        this->reset(fty_proto_decode(&raw)); //destroys (raw)'s allocation
-    }
-};
 
 class IMetricsRW
 {
 public:
     enum class MetricsConnType { PRODUCER, CONSUMER};
 
-    static MlmClientUPtr connect(MetricsConnType type, const char* endpoint, int timeout, metric_func_err_t p_error_fn);
+    static MlmClientUPtr connect(t1_metrics_ctx ctx, MetricsConnType type,
+                                 const char* endpoint, metric_func_err_t p_error_fn);
 
     IMetricsRW(MlmClientUPtr&& connection, MetricsConnType type)
         : m_mlm_connection(std::move(connection)), m_metrics_connection_type(type)
@@ -140,10 +131,10 @@ public:
     virtual ~IMetricsRW() = default;
 
     virtual void clear() { m_mlm_connection.reset(nullptr); }
-    bool empty() const { return m_mlm_connection.empty(); }
+    bool empty() const { return nullptr == m_mlm_connection; }
 
-    virtual void tx(metric_param_t param, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
-    virtual ZmsgUPtr rx(metric_func_err_t fn_err = metric_func_err_t(/*none*/));
+    virtual void tx(t1_metrics_ctx ctx, ZmsgUPtr&& msg, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
+    virtual ZmsgUPtr rx(t1_metrics_ctx ctx, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
 
     MlmClientUPtr m_mlm_connection;
     MetricsConnType m_metrics_connection_type = MetricsConnType::CONSUMER;
