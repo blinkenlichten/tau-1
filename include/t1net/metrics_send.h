@@ -1,4 +1,4 @@
-#include <fty_proto.h>
+
 #include <malamute.h>
 #include "czmq.h"
 
@@ -102,8 +102,10 @@ t1_metrics_ctx/*don't ignore it*/ t1_destroy_metrics(t1_metrics_ctx context);
 }//extern "C"
 #endif //__cplusplus
 
+//----C++ RAII wrappers for t1 functions---------------------------------------
 #ifdef __cplusplus
 #include <memory>
+#include "noncopyable.hpp"
 
 extern void mlm_client_destroy(mlm_client_t*);
 
@@ -115,16 +117,29 @@ struct ZmsgDeleter { void operator()(zmsg_t* msg) { zmsg_destroy(&msg); } };
 
 typedef std::unique_ptr<mlm_client_t,MlmClientDeleter> MlmClientUPtr;
 typedef std::unique_ptr<zmsg_t, ZmsgDeleter> ZmsgUPtr;
+//-----------------------------------------------------------------------------
+class MetricsContext : public Tau1::noncopyable
+{
+public:
+    MetricsContext(METRICS_DATA_PRODUCER type = METRICS_DATA_PRODUCER::METRICS)
+        : m_context(t1_init_metrics(type))
+    { }
+    virtual ~MetricsContext() { m_context = t1_destroy_metrics(m_context); }
 
+    operator t1_metrics_ctx() const { return m_context; }
 
+    t1_metrics_ctx m_context;
+};
+//-----------------------------------------------------------------------------
 class IMetricsRW
 {
 public:
     enum class MetricsConnType { PRODUCER, CONSUMER};
 
     static MlmClientUPtr connect(t1_metrics_ctx ctx, MetricsConnType type,
-                                 const char* endpoint, metric_func_err_t p_error_fn);
-
+                                 const char* endpoint, metric_func_err_t p_error_fn = metric_func_err_t(/*none*/));
+    IMetricsRW() = default;
+    IMetricsRW(IMetricsRW&&) = default;
     IMetricsRW(MlmClientUPtr&& connection, MetricsConnType type)
         : m_mlm_connection(std::move(connection)), m_metrics_connection_type(type)
     { }
@@ -138,9 +153,9 @@ public:
 
     MlmClientUPtr m_mlm_connection;
     MetricsConnType m_metrics_connection_type = MetricsConnType::CONSUMER;
-};
-
+};// class IMetricsRW
+//-----------------------------------------------------------------------------
 }//namespace Tau1
-
+//-----------------------------------------------------------------------------
 #endif //__cplusplus
 

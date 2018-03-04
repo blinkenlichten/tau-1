@@ -8,15 +8,16 @@ option(BUILD_UI "Compile UI that depends on Qt5." ON)
 option(MEMADDR_SANITIZER "Turn on memory sanitizer" ON)
 
 ## Where to look for Qt5:
-set(QT5_SEARCH_PATH $ENV{HOME}/Qt/5.10.1 CACHE PATH "Qt5 search path")
-set(QT_QMAKE_EXECUTABLE ${QT5_SEARCH_PATH}/gcc_64/bin/qmake CACHE PATH "Qt5 qmake path for GCC")
+set(QT5_SEARCH_PATH $ENV{HOME}/Qt/5.10.1/gcc_64 CACHE PATH "Qt5 search path")
+set(QT_QMAKE_EXECUTABLE ${QT5_SEARCH_PATH}/bin/qmake CACHE PATH "Qt5 qmake path for GCC")
 ##-------------------------------------------------------------------------
 
 set(DEPENDS_ROOT ${CMAKE_SOURCE_DIR}/build_deps CACHE PATH "Directory where we put dependencies libraries.")
-
+set(CMAKE_PREFIX_PATH ${QT5_SEARCH_PATH})
 
 find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Gui REQUIRED)
+find_package(Qt5Charts REQUIRED)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)

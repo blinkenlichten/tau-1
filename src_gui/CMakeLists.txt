@@ -6,10 +6,17 @@ set(CMAKE_AUTOUIC ON)
 
 link_directories(${DEPENDS_ROOT}/lib ${DEPENDS_ROOT}/bin)
 include_directories(${DEPENDS_ROOT}/include)
+include_directories(${CMAKE_SOURCE_DIR}/include)
+include_directories(../include)
+include_directories(./display_gui)
 
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
+add_definitions("-std=c++1z")
 
-file(GLOB_RECURSE src_display_gui ${CMAKE_CURRENT_SOURCE_DIR}/display_gui/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/display_gui/*.h*)
+file(GLOB_RECURSE src_display_gui ${CMAKE_CURRENT_SOURCE_DIR}/display_gui/*.cpp ${CMAKE_CURRENT_SOURCE_DIR}/display_gui/*.h ${CMAKE_CURRENT_SOURCE_DIR}/display_gui/*.hpp)
 
 add_executable(display_gui ${src_display_gui})
 if(DO_MEMADDR_SANITIZE)
@@ -18,6 +25,6 @@ if(DO_MEMADDR_SANITIZE)
 endif()
 
 target_compile_features(display_gui PUBLIC cxx_constexpr)
-target_link_libraries(display_gui Qt5::Widgets Qt5::Gui ) #Qt5::Charts
+target_link_libraries(display_gui Qt5::Widgets Qt5::Gui Qt5::Charts)
 
 
