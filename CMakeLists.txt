@@ -1,32 +1,20 @@
 cmake_minimum_required(VERSION 3.0.0 FATAL_ERROR)
 
-project(Tau1)
+project(Tau1 CXX)
 
 #sensible project options:
 ##-------------------------------------------------------------------------
-option(BUILD_UI "Compile UI that depends on Qt5." ON)
 option(MEMADDR_SANITIZER "Turn on memory sanitizer" ON)
 
-## Where to look for Qt5:
-set(QT5_SEARCH_PATH $ENV{HOME}/Qt/5.10.1/gcc_64 CACHE PATH "Qt5 search path")
-set(QT_QMAKE_EXECUTABLE ${QT5_SEARCH_PATH}/bin/qmake CACHE PATH "Qt5 qmake path for GCC")
-##-------------------------------------------------------------------------
-
-set(DEPENDS_ROOT ${CMAKE_SOURCE_DIR}/build_deps CACHE PATH "Directory where we put dependencies libraries.")
-set(CMAKE_PREFIX_PATH ${QT5_SEARCH_PATH})
-
-find_package(Qt5Widgets REQUIRED)
-find_package(Qt5Gui REQUIRED)
-find_package(Qt5Charts REQUIRED)
-
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
+set(DEPENDS_ROOT ${CMAKE_SOURCE_DIR}/external CACHE PATH "Directory where we put dependencies libraries.")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_definitions("-std=c++1z")
 
 
 add_subdirectory(src)
-add_subdirectory(src_gui)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/external/include)
+INCLUDE_DIRECTORIES(${DEPENDS_ROOT}/include)
 

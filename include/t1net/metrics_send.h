@@ -11,7 +11,7 @@ enum METRICS_DATA_PRODUCER
 { METRICS, ALERT, ACTION, LOG, NONE_LAST};
 
 static const char* g_data_producers_names[] = {"METRICS", "ALERT", "ACTION", "LOG", "NONE"};
-static const char* name_producer(METRICS_DATA_PRODUCER item) { return g_data_producers_names[(int)item];}
+const char* name_producer(METRICS_DATA_PRODUCER item);
 //-----------------------------------------------------------------------------
 struct metric_func_err_t
 {
@@ -57,21 +57,7 @@ typedef bool (*fn_send_metrics_t)
      zmsg_t** p_data_zmsg, metric_func_err_t p_error_fn);
 
 /** Receive metric data.
- * @return: (fty_proto_t*) decoded message pointer that caller MUST DESTROY
- * via fty_proto_destroy(pointer) after consuming it; the value MAY BE NULL.
-
- * @verbatim
-    mlm_client_t *client = t1_metrics_receive_connect(const char* endpoint, int timeout);
-    while(!zsys_interrupted)
-    {
-        fty_proto_t* msg = t1_receive_metrics(client);
-        // parse (msg)
-        fty_proto_destroy(&msg);
-    }
-    mlm_client_destroy(client);
-   @endverbatim
-
-   @param endpoint: IPC endpoint, usually "ipc://@/malamute".
+ * @return: zmsg_t* that caller CARES TO DESTRUCT by zmsg_destroy(zmsg_t**), can be nullptr.
  */
 typedef zmsg_t* (*fn_receive_metrics_t)(t1_metrics_ctx ctx, mlm_client_t* client);
 //-----------------------------------------------------------------------------
@@ -88,7 +74,7 @@ struct t1_metrics_ctx
     metric_func_err_t fn_error/*reports errors in this context*/, fn_log/*info logs for the context*/;
     void* arbitrary;
 #ifdef __cplusplus
-    t1_metrics_ctx() { ::memset(this, 0x00, sizeof(t1_metrics_ctx)); }
+    t1_metrics_ctx() { *this = t1_metrics_ctx{}; }
 #endif
 };
 
@@ -112,7 +98,7 @@ extern void mlm_client_destroy(mlm_client_t*);
 
 namespace Tau1
 {
-struct MlmClientDeleter { void operator()(mlm_client_t* cl) { mlm_client_destroy(cl);} };
+struct MlmClientDeleter { void operator()(mlm_client_t* cl) { mlm_client_destroy(&cl);} };
 struct ZmsgDeleter { void operator()(zmsg_t* msg) { zmsg_destroy(&msg); } };
 
 typedef std::unique_ptr<mlm_client_t,MlmClientDeleter> MlmClientUPtr;
@@ -124,6 +110,7 @@ public:
     MetricsContext(METRICS_DATA_PRODUCER type = METRICS_DATA_PRODUCER::METRICS)
         : m_context(t1_init_metrics(type))
     { }
+    MetricsContext(MetricsContext&&) = default;
     virtual ~MetricsContext() { m_context = t1_destroy_metrics(m_context); }
 
     operator t1_metrics_ctx() const { return m_context; }
@@ -139,7 +126,8 @@ public:
     static MlmClientUPtr connect(t1_metrics_ctx ctx, MetricsConnType type,
                                  const char* endpoint, metric_func_err_t p_error_fn = metric_func_err_t(/*none*/));
     IMetricsRW() = default;
-    IMetricsRW(IMetricsRW&&) = default;
+    IMetricsRW(IMetricsRW&& other) = default;
+    IMetricsRW& operator = (IMetricsRW&& other) = default;
     IMetricsRW(MlmClientUPtr&& connection, MetricsConnType type)
         : m_mlm_connection(std::move(connection)), m_metrics_connection_type(type)
     { }

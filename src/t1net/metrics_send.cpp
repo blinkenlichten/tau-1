@@ -3,7 +3,8 @@
 #include <string>
 #include <array>
 
-
+const char* name_producer(METRICS_DATA_PRODUCER item)
+{ return g_data_producers_names[(int)item]; }
 //-----------------------------------------------------------------------------
 namespace Tau1 {
 

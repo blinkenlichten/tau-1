@@ -1,4 +1,4 @@
-#include <QApplication>
+#include <QGuiApplication>
 #include <QDir>
 #include <cassert>
 #include <QtWidgets/QApplication>

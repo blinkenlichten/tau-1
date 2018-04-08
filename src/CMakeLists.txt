@@ -15,5 +15,5 @@ if(DO_MEMADDR_SANITIZE)
         target_link_libraries(t1net -lasan)
 endif()
 
-target_link_libraries(t1net -pthread -lssl -lcrypto)
+target_link_libraries(t1net -pthread -lssl -lcrypto -lzmq -lczmq -lsodium -lmlm)
 
