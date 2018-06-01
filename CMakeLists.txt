@@ -9,7 +9,7 @@ option(MEMADDR_SANITIZER "Turn on memory sanitizer" ON)
 set(DEPENDS_ROOT ${CMAKE_SOURCE_DIR}/external CACHE PATH "Directory where we put dependencies libraries.")
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-add_definitions("-std=c++1z")
+add_definitions("-std=c++1z -O0 -ggdb")
 
 
 add_subdirectory(src)

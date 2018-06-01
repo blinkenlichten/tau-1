@@ -11,6 +11,7 @@
 #include <QtCore/QTextStream>
 #include <QtCore/QDebug>
 #include <QtCharts/QValueAxis>
+#include "simplexy.h"
 
 int main(int argc, char *argv[])
 {
@@ -35,8 +36,9 @@ int main(int argc, char *argv[])
         lib_paths << dir.absolutePath();
         QApplication::setLibraryPaths(lib_paths);
     }
+    QMainWindow window;
     {
-        QLineSeries *series = new QLineSeries();
+        SimpleXY *series = new SimpleXY();
 
         QChart *chart = new QChart();
         chart->legend()->hide();
@@ -46,7 +48,6 @@ int main(int argc, char *argv[])
 
         QChartView *chartView = new QChartView(chart);
         chartView->setRenderHint(QPainter::Antialiasing);
-        QMainWindow window;
         window.setCentralWidget(chartView);
         window.resize(400, 300);
         window.show();

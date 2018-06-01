@@ -1,7 +1,7 @@
 QT += charts
 CONFIG += c++11
 
-TARGET = display_gui
+TARGET = display_demo
 LIBS += ../external/lib/libt1net.a -L../external/lib -lmlm -lczmq -lzmq
 
 INCLUDEPATH += ../include ../external/include

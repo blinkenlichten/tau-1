@@ -53,11 +53,11 @@ static zmsg_t* receive(t1_metrics_ctx ctx, mlm_client_t* client)
 
 template<class FNProducerOrConsumerSetter>
 Tau1::MlmClientUPtr __t1_metrics_connect(const char* endpoint, int timeout,
-                                         const char* client_type,
+                                         const char* chan_address,
                                          FNProducerOrConsumerSetter&& setter)
 {
     Tau1::MlmClientUPtr client(mlm_client_new());
-    if ( 0 > mlm_client_connect(client.get(), endpoint, timeout, client_type))
+    if ( 0 > mlm_client_connect(client.get(), endpoint, timeout, chan_address))
         return Tau1::MlmClientUPtr();
     FNProducerOrConsumerSetter _set = std::move(setter);
     if ( 0 > _set(client.get()) )
@@ -74,7 +74,7 @@ static mlm_client_t* connect_emitter
     { return mlm_client_set_producer(client, name_producer(METRICS_DATA_PRODUCER::METRICS));};
 
     Tau1::MlmClientUPtr producer = __t1_metrics_connect<decltype(setter)>
-            (endpoint, ctx.timeout, "metrics_producer", std::move(setter));
+            (endpoint, ctx.timeout, "metrics", std::move(setter));
     if (nullptr == producer && p_error_fn.on_error)
     {
         std::array<char, 256> error_msg;
@@ -87,10 +87,10 @@ static mlm_client_t* connect_emitter
 static mlm_client_t* connect_receiver(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
 {
     auto setter = [](mlm_client_t* client) -> int
-    { return mlm_client_set_consumer(client, name_producer(METRICS_DATA_PRODUCER::METRICS), ".*");};
+    { return mlm_client_set_consumer(client, name_producer(METRICS_DATA_PRODUCER::METRICS), "*");};
 
     Tau1::MlmClientUPtr receiver = __t1_metrics_connect<decltype(setter)>
-            (endpoint, ctx.timeout, "metrics_consumer", std::move(setter));
+            (endpoint, ctx.timeout, "metrics", std::move(setter));
 
     if (nullptr == receiver && p_error_fn.on_error)
     {
@@ -110,10 +110,9 @@ MlmClientUPtr IMetricsRW::connect(t1_metrics_ctx ctx, IMetricsRW::MetricsConnTyp
                               ctx.pfn_connect_consumer(ctx, endpoint, p_error_fn));
 }
 
-void IMetricsRW::tx(t1_metrics_ctx ctx, ZmsgUPtr&& msg, metric_func_err_t fn_err)
+void IMetricsRW::tx(t1_metrics_ctx ctx, ZmsgUPtr& msg, metric_func_err_t fn_err)
 {
-    ZmsgUPtr local_msg = std::move(msg);
-    zmsg_t* released = local_msg.release();
+    zmsg_t* released = msg.release();
     ctx.pfn_send(ctx, m_mlm_connection.get(), &released, fn_err);
 }
 
@@ -131,7 +130,7 @@ ZmsgUPtr IMetricsRW::rx(t1_metrics_ctx ctx, metric_func_err_t fn_err)
 //-----------------------------------------------------------------------------
 t1_metrics_ctx t1_init_metrics(METRICS_DATA_PRODUCER type)
 {
-    t1_metrics_ctx _c = t1_metrics_ctx();
+    t1_metrics_ctx _c;
     _c.mlm_address = g_mlm_metrics_address;
     _c.timeout = g_metrics_timeout;
     _c.data_type = type;

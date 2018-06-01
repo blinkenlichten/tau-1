@@ -18,8 +18,12 @@ public:
 
         reader_thread = std::thread([this]()
         {
-            Tau1::MlmClientUPtr ptr_ = Tau1::IMetricsRW::connect
-              (ctx, Tau1::IMetricsRW::MetricsConnType::CONSUMER, endpoint);
+            Tau1::MlmClientUPtr ptr_;
+            for ( ; !quit_flag.load() && nullptr == ptr_; )
+            {
+                ptr_ = Tau1::IMetricsRW::connect(ctx, Tau1::IMetricsRW::MetricsConnType::CONSUMER, endpoint);
+            }
+
             reader = std::move(Tau1::IMetricsRW(std::move(ptr_), Tau1::IMetricsRW::MetricsConnType::CONSUMER));
 
             for ( Tau1::ZmsgUPtr msg = reader.rx(ctx); !quit_flag.load(); msg = reader.rx(ctx))
@@ -86,8 +90,11 @@ struct DummyWriter : public QRunnable
     {
         std::thread writer_thread([this]()
         {
-            Tau1::MlmClientUPtr ptr_ = Tau1::IMetricsRW::connect
-              (m_ref.ctx, Tau1::IMetricsRW::MetricsConnType::CONSUMER, m_ref.endpoint);
+            Tau1::MlmClientUPtr ptr_;
+            for ( ; !m_ref.quit_flag.load() && nullptr == ptr_; )
+            {
+                ptr_ = Tau1::IMetricsRW::connect(m_ref.ctx, Tau1::IMetricsRW::MetricsConnType::PRODUCER, m_ref.endpoint);
+            }
             writer = std::move(Tau1::IMetricsRW(std::move(ptr_), Tau1::IMetricsRW::MetricsConnType::PRODUCER));
             QVector<QPointF> points_buf;
             points_buf.reserve(1024);
@@ -104,7 +111,7 @@ struct DummyWriter : public QRunnable
                 Tau1::ZmsgUPtr uzmsg(zmsg_new());
                 zmsg_addmem(uzmsg.get(), (void*)points_buf.data(), points_buf.size() * sizeof(QPointF));
 
-                writer.tx(m_ref.ctx, std::move(uzmsg));
+                writer.tx(m_ref.ctx, uzmsg);
             }
 
         });

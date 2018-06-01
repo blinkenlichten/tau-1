@@ -74,7 +74,7 @@ struct t1_metrics_ctx
     metric_func_err_t fn_error/*reports errors in this context*/, fn_log/*info logs for the context*/;
     void* arbitrary;
 #ifdef __cplusplus
-    t1_metrics_ctx() { *this = t1_metrics_ctx{}; }
+    t1_metrics_ctx() { ::memset(this, 0x00, sizeof(*this)); }
 #endif
 };
 
@@ -136,7 +136,7 @@ public:
     virtual void clear() { m_mlm_connection.reset(nullptr); }
     bool empty() const { return nullptr == m_mlm_connection; }
 
-    virtual void tx(t1_metrics_ctx ctx, ZmsgUPtr&& msg, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
+    virtual void tx(t1_metrics_ctx ctx, ZmsgUPtr& msg, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
     virtual ZmsgUPtr rx(t1_metrics_ctx ctx, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
 
     MlmClientUPtr m_mlm_connection;
