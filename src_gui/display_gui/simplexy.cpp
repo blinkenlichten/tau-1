@@ -9,7 +9,7 @@
 class XYSharedState : public QRunnable
 {
 public:
-    Tau1::MetricsContext ctx;
+    tau1::MetricsContext ctx;
     const char* endpoint = "ipc://@/malamute";
 
     void run() override
@@ -18,15 +18,15 @@ public:
 
         reader_thread = std::thread([this]()
         {
-            Tau1::MlmClientUPtr ptr_;
+            tau1::MlmClientUPtr ptr_;
             for ( ; !quit_flag.load() && nullptr == ptr_; )
             {
-                ptr_ = Tau1::IMetricsRW::connect(ctx, Tau1::IMetricsRW::MetricsConnType::CONSUMER, endpoint);
+                ptr_ = tau1::IMetricsRW::connect(ctx, tau1::IMetricsRW::MetricsConnType::CONSUMER, endpoint);
             }
 
-            reader = std::move(Tau1::IMetricsRW(std::move(ptr_), Tau1::IMetricsRW::MetricsConnType::CONSUMER));
+            reader = std::move(tau1::IMetricsRW(std::move(ptr_), tau1::IMetricsRW::MetricsConnType::CONSUMER));
 
-            for ( Tau1::ZmsgUPtr msg = reader.rx(ctx); !quit_flag.load(); msg = reader.rx(ctx))
+            for ( tau1::ZmsgUPtr msg = reader.rx(ctx); !quit_flag.load(); msg = reader.rx(ctx))
             {
                 for ( zframe_t* pframe = zmsg_first(msg.get()); pframe; pframe = zmsg_next(msg.get()))
                 {
@@ -71,7 +71,7 @@ public:
     std::atomic<bool> quit_flag;
     static constexpr size_t max_data_bytes = 10 * 1024 * 1024;
 private:
-    Tau1::IMetricsRW reader;
+    tau1::IMetricsRW reader;
     std::thread reader_thread;
     std::mutex data_mutex;
     std::list<QVector<QPointF> > data;
@@ -81,7 +81,7 @@ private:
 
 struct DummyWriter : public QRunnable
 {
-    Tau1::IMetricsRW writer;
+    tau1::IMetricsRW writer;
     XYSharedState& m_ref;
 
     DummyWriter(XYSharedState& ref) : QRunnable(), m_ref(ref)
@@ -90,12 +90,12 @@ struct DummyWriter : public QRunnable
     {
         std::thread writer_thread([this]()
         {
-            Tau1::MlmClientUPtr ptr_;
+            tau1::MlmClientUPtr ptr_;
             for ( ; !m_ref.quit_flag.load() && nullptr == ptr_; )
             {
-                ptr_ = Tau1::IMetricsRW::connect(m_ref.ctx, Tau1::IMetricsRW::MetricsConnType::PRODUCER, m_ref.endpoint);
+                ptr_ = tau1::IMetricsRW::connect(m_ref.ctx, tau1::IMetricsRW::MetricsConnType::PRODUCER, m_ref.endpoint);
             }
-            writer = std::move(Tau1::IMetricsRW(std::move(ptr_), Tau1::IMetricsRW::MetricsConnType::PRODUCER));
+            writer = std::move(tau1::IMetricsRW(std::move(ptr_), tau1::IMetricsRW::MetricsConnType::PRODUCER));
             QVector<QPointF> points_buf;
             points_buf.reserve(1024);
             size_t cnt = 0;
@@ -108,7 +108,7 @@ struct DummyWriter : public QRunnable
                     points_buf[i].ry() = ::sin(points_buf[i].x());
                 }
                 cnt += points_buf.size();
-                Tau1::ZmsgUPtr uzmsg(zmsg_new());
+                tau1::ZmsgUPtr uzmsg(zmsg_new());
                 zmsg_addmem(uzmsg.get(), (void*)points_buf.data(), points_buf.size() * sizeof(QPointF));
 
                 writer.tx(m_ref.ctx, uzmsg);

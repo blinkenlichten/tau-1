@@ -79,7 +79,8 @@ struct t1_metrics_ctx
 };
 
 t1_metrics_ctx t1_init_metrics(METRICS_DATA_PRODUCER type);
-
+mlm_client_t* t1_connect_emitter(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn);
+mlm_client_t* t1_connect_receiver(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn);
 /// deallocate or simply 0-fill structure's pointer. @return 0-filled structure.
 t1_metrics_ctx/*don't ignore it*/ t1_destroy_metrics(t1_metrics_ctx context);
 //-----------------------------------------------------------------------------
@@ -87,63 +88,3 @@ t1_metrics_ctx/*don't ignore it*/ t1_destroy_metrics(t1_metrics_ctx context);
 #ifdef __cplusplus
 }//extern "C"
 #endif //__cplusplus
-
-//----C++ RAII wrappers for t1 functions---------------------------------------
-#ifdef __cplusplus
-#include <memory>
-#include "noncopyable.hpp"
-
-extern void mlm_client_destroy(mlm_client_t*);
-
-
-namespace Tau1
-{
-struct MlmClientDeleter { void operator()(mlm_client_t* cl) { mlm_client_destroy(&cl);} };
-struct ZmsgDeleter { void operator()(zmsg_t* msg) { zmsg_destroy(&msg); } };
-
-typedef std::unique_ptr<mlm_client_t,MlmClientDeleter> MlmClientUPtr;
-typedef std::unique_ptr<zmsg_t, ZmsgDeleter> ZmsgUPtr;
-//-----------------------------------------------------------------------------
-class MetricsContext : public Tau1::noncopyable
-{
-public:
-    MetricsContext(METRICS_DATA_PRODUCER type = METRICS_DATA_PRODUCER::METRICS)
-        : m_context(t1_init_metrics(type))
-    { }
-    MetricsContext(MetricsContext&&) = default;
-    virtual ~MetricsContext() { m_context = t1_destroy_metrics(m_context); }
-
-    operator t1_metrics_ctx() const { return m_context; }
-
-    t1_metrics_ctx m_context;
-};
-//-----------------------------------------------------------------------------
-class IMetricsRW
-{
-public:
-    enum class MetricsConnType { PRODUCER, CONSUMER};
-
-    static MlmClientUPtr connect(t1_metrics_ctx ctx, MetricsConnType type,
-                                 const char* endpoint, metric_func_err_t p_error_fn = metric_func_err_t(/*none*/));
-    IMetricsRW() = default;
-    IMetricsRW(IMetricsRW&& other) = default;
-    IMetricsRW& operator = (IMetricsRW&& other) = default;
-    IMetricsRW(MlmClientUPtr&& connection, MetricsConnType type)
-        : m_mlm_connection(std::move(connection)), m_metrics_connection_type(type)
-    { }
-    virtual ~IMetricsRW() = default;
-
-    virtual void clear() { m_mlm_connection.reset(nullptr); }
-    bool empty() const { return nullptr == m_mlm_connection; }
-
-    virtual void tx(t1_metrics_ctx ctx, ZmsgUPtr& msg, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
-    virtual ZmsgUPtr rx(t1_metrics_ctx ctx, metric_func_err_t fn_err = metric_func_err_t(/*none*/));
-
-    MlmClientUPtr m_mlm_connection;
-    MetricsConnType m_metrics_connection_type = MetricsConnType::CONSUMER;
-};// class IMetricsRW
-//-----------------------------------------------------------------------------
-}//namespace Tau1
-//-----------------------------------------------------------------------------
-#endif //__cplusplus
-

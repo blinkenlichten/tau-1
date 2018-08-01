@@ -1,19 +1,18 @@
 #ifndef NONCOPYABLE_HPP
 #define NONCOPYABLE_HPP
 
-namespace Tau1 {
+namespace tau1 {
 
 class noncopyable
 {
-public:
+protected:
     noncopyable() = default;
-    virtual ~noncopyable() = default;
-    noncopyable(noncopyable &&) = default;
-
+    ~noncopyable() = default;
+public:
     noncopyable( const noncopyable& ) = delete;
     noncopyable& operator=( const noncopyable& ) = delete;
 };
 
-}//Tau1
+}//tau1
 
 #endif // NONCOPYABLE_HPP

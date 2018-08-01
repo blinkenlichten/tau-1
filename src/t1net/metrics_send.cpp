@@ -1,12 +1,13 @@
-#include "t1_anything_goes/scoped_fn.hpp"
-#include "t1net/metrics_send.h"
+#include <t1_anything_goes/scoped_fn.hpp>
+#include <t1net/metrics_send.h>
+#include <t1net/log.h>
 #include <string>
 #include <array>
 
 const char* name_producer(METRICS_DATA_PRODUCER item)
 { return g_data_producers_names[(int)item]; }
 //-----------------------------------------------------------------------------
-namespace Tau1 {
+namespace tau1 {
 
 static bool send(t1_metrics_ctx ctx, mlm_client_t *producer,
                  zmsg_t** p_data_zmsg, metric_func_err_t p_error_fn)
@@ -19,7 +20,7 @@ static bool send(t1_metrics_ctx ctx, mlm_client_t *producer,
             p_error_fn.on_error(error_msg.size(), error_msg.data(), nullptr);
         }
     };
-    ScopedInvoke<decltype(fn_if_error)> err_invoker(std::move(fn_if_error));
+    scoped_invoke<decltype(fn_if_error)> err_invoker(std::move(fn_if_error));
 
     if (nullptr == producer)
     {
@@ -51,78 +52,47 @@ static zmsg_t* receive(t1_metrics_ctx ctx, mlm_client_t* client)
     (void)ctx; return mlm_client_recv(client);
 }
 
-template<class FNProducerOrConsumerSetter>
-Tau1::MlmClientUPtr __t1_metrics_connect(const char* endpoint, int timeout,
-                                         const char* chan_address,
-                                         FNProducerOrConsumerSetter&& setter)
+static mlm_client_t* connect_emitter_or_receiver
+(bool is_listener, t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
 {
-    Tau1::MlmClientUPtr client(mlm_client_new());
-    if ( 0 > mlm_client_connect(client.get(), endpoint, timeout, chan_address))
-        return Tau1::MlmClientUPtr();
-    FNProducerOrConsumerSetter _set = std::move(setter);
-    if ( 0 > _set(client.get()) )
+    std::array<char, 256> error_msg;
+    auto fn_quick_err_log = [&error_msg, p_error_fn, endpoint](const char* what)
     {
-        return Tau1::MlmClientUPtr();
-    }
-    return client;
-}
-
-static mlm_client_t* connect_emitter
-(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
-{
-    auto setter = [](mlm_client_t* client) -> int
-    { return mlm_client_set_producer(client, name_producer(METRICS_DATA_PRODUCER::METRICS));};
-
-    Tau1::MlmClientUPtr producer = __t1_metrics_connect<decltype(setter)>
-            (endpoint, ctx.timeout, "metrics", std::move(setter));
-    if (nullptr == producer && p_error_fn.on_error)
-    {
-        std::array<char, 256> error_msg;
-        int nwritten = snprintf(error_msg.data(), error_msg.size(), "t1_metrics_emitter_connect (endpoint = %s) failed.", endpoint);
+        log_write(e_severity::s_error, what);
+        int nwritten = snprintf(error_msg.data(), error_msg.size(), "connect_emitter(): %s on endpoint %s", what, endpoint);
         p_error_fn.on_error((size_t)nwritten, error_msg.data(), p_error_fn.arg_data);
-    }
-    return producer.release();
-}
+    };
 
-static mlm_client_t* connect_receiver(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
-{
-    auto setter = [](mlm_client_t* client) -> int
-    { return mlm_client_set_consumer(client, name_producer(METRICS_DATA_PRODUCER::METRICS), "*");};
-
-    Tau1::MlmClientUPtr receiver = __t1_metrics_connect<decltype(setter)>
-            (endpoint, ctx.timeout, "metrics", std::move(setter));
-
-    if (nullptr == receiver && p_error_fn.on_error)
+    mlm_client_t* client_ptr = mlm_client_new();
+    if (!client_ptr)
     {
-        std::array<char, 256> error_msg;
-        int nwritten = snprintf(error_msg.data(), error_msg.size(), "t1_metrics_receiver_connect (endpoint = %s) failed.", endpoint);
-        p_error_fn.on_error(nwritten, error_msg.data(), p_error_fn.arg_data);
+        fn_quick_err_log("mlm_client_new() failed.");
+        return nullptr;
     }
-    return receiver.release();
+    int result = mlm_client_connect(client_ptr, endpoint, ctx.timeout, "METRICS");
+    if (result < 0)
+    {
+        fn_quick_err_log("mlm_client_connect() failed.");
+        mlm_client_destroy(&client_ptr);
+    }
+    if (is_listener)
+        mlm_client_set_consumer(client_ptr, "METRICS", "*");
+    else
+        mlm_client_set_producer(client_ptr, "METRICS");
+    return client_ptr;
 }
 
-MlmClientUPtr IMetricsRW::connect(t1_metrics_ctx ctx, IMetricsRW::MetricsConnType type,
-                                  const char* endpoint, metric_func_err_t p_error_fn)
+mlm_client_t* connect_emitter(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
 {
-    return MlmClientUPtr( IMetricsRW::MetricsConnType::PRODUCER == type?
-                              ctx.pfn_connect_emitter(ctx, endpoint, p_error_fn)
-                            :
-                              ctx.pfn_connect_consumer(ctx, endpoint, p_error_fn));
+    return connect_emitter_or_receiver(false/*not listener*/, ctx, endpoint, p_error_fn);
 }
 
-void IMetricsRW::tx(t1_metrics_ctx ctx, ZmsgUPtr& msg, metric_func_err_t fn_err)
+mlm_client_t* connect_receiver(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
 {
-    zmsg_t* released = msg.release();
-    ctx.pfn_send(ctx, m_mlm_connection.get(), &released, fn_err);
+    return connect_emitter_or_receiver(true, ctx, endpoint, p_error_fn);
 }
 
-ZmsgUPtr IMetricsRW::rx(t1_metrics_ctx ctx, metric_func_err_t fn_err)
-{
-    (void)fn_err;
-    return ZmsgUPtr( ctx.pfn_receive(ctx, m_mlm_connection.get()) );
-}
-
-}//namespace Tau1
+}//namespace tau1
 
 
 
@@ -130,14 +100,14 @@ ZmsgUPtr IMetricsRW::rx(t1_metrics_ctx ctx, metric_func_err_t fn_err)
 //-----------------------------------------------------------------------------
 t1_metrics_ctx t1_init_metrics(METRICS_DATA_PRODUCER type)
 {
-    t1_metrics_ctx _c;
+    t1_metrics_ctx _c = {};
     _c.mlm_address = g_mlm_metrics_address;
     _c.timeout = g_metrics_timeout;
     _c.data_type = type;
-    _c.pfn_connect_emitter = &Tau1::connect_emitter;
-    _c.pfn_connect_consumer = &Tau1::connect_receiver;
-    _c.pfn_send = &Tau1::send;
-    _c.pfn_receive = &Tau1::receive;
+    _c.pfn_connect_emitter = &t1_connect_emitter;
+    _c.pfn_connect_consumer = &t1_connect_receiver;
+    _c.pfn_send = &tau1::send;
+    _c.pfn_receive = &tau1::receive;
     _c.fn_error = metric_func_err_t();
     _c.fn_log = metric_func_err_t();
     _c.arbitrary = nullptr;

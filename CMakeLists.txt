@@ -11,10 +11,9 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 add_definitions("-std=c++1z -O0 -ggdb")
 
-
-add_subdirectory(src)
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/external/include)
 INCLUDE_DIRECTORIES(${DEPENDS_ROOT}/include)
+
+add_subdirectory(src)
 

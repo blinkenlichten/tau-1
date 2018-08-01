@@ -7,22 +7,22 @@
 struct VoidOp { void operator()(){ }};
 
 template<class UnlockFn, class LockFn = VoidOp >
-class ScopedInvoke
+class scoped_invoke
 {
-    ScopedInvoke();
-    ScopedInvoke(const ScopedInvoke&);
-    ScopedInvoke& operator = (const ScopedInvoke&);
+    scoped_invoke();
+    scoped_invoke(const scoped_invoke&);
+    scoped_invoke& operator = (const scoped_invoke&);
 public:
     UnlockFn m_unlock_fn;
     LockFn m_lock_fn;
     bool m_released = false;
 
-    ScopedInvoke(ScopedInvoke&& rhs) = default;
+    scoped_invoke(scoped_invoke&& rhs) = default;
 
-    ScopedInvoke(UnlockFn&& fnUnlock) : m_unlock_fn(fnUnlock)
+    scoped_invoke(UnlockFn&& fnUnlock) : m_unlock_fn(fnUnlock)
     {  }
 
-    ScopedInvoke(UnlockFn&& fnUnlock, LockFn&& fnLock) : m_unlock_fn(std::move(fnUnlock)), m_lock_fn(std::move(fnLock))
+    scoped_invoke(UnlockFn&& fnUnlock, LockFn&& fnLock) : m_unlock_fn(std::move(fnUnlock)), m_lock_fn(std::move(fnLock))
     { m_lock_fn.operator()(); }
 
     UnlockFn&& Release()
@@ -30,13 +30,13 @@ public:
         m_released = true;
         return std::move(m_unlock_fn);
     }
-    virtual ~ScopedInvoke()
+    virtual ~scoped_invoke()
     { if (!m_released) m_unlock_fn.operator()(); }
 };
 
 #define ON_SCOPE_EXIT(NAME, ON_EXIT_STATEMENT) \
   auto fn_scoped_##NAME = [&](){ ON_EXIT_STATEMENT; }; \
-  ScopedInvoke<decltype(fn_scoped_##NAME )>(std::move(fn_scoped_##NAME));
+  scoped_invoke<decltype(fn_scoped_##NAME )>(std::move(fn_scoped_##NAME));
 
 /*using namespace std;
 
@@ -47,26 +47,26 @@ int main()
     auto fnLow = []() { cout << "Bye, Bye!" << endl;};
     {
         // executes only "Bye"
-        ScopedInvoke<decltype(fnLow)> guard(std::move(fnLow));
+        scoped_invoke<decltype(fnLow)> guard(std::move(fnLow));
     }
     cout << "----------\n";
     // executes "Hello" and "Bye"
-    ScopedInvoke<decltype(fnLow), decltype(fnHi)> guard(std::move(fnLow), std::move(fnHi));
+    scoped_invoke<decltype(fnLow), decltype(fnHi)> guard(std::move(fnLow), std::move(fnHi));
     return 0;
 }*/
 
 template<typename PtrType, class FnDisposer>
-class TDisposableUniquePointer
+class T_disposable_ptr
 {
 public:
-    typedef TDisposableUniquePointer<PtrType, FnDisposer> __TBase;
+    typedef T_disposable_ptr<PtrType, FnDisposer> __TBase;
 
     PtrType m_ptr = nullptr;
     FnDisposer m_func;
-    TDisposableUniquePointer() = default;
-    TDisposableUniquePointer(PtrType object) : m_ptr(object)  {   }
+    T_disposable_ptr() = default;
+    T_disposable_ptr(PtrType object) : m_ptr(object)  {   }
 
-    TDisposableUniquePointer(PtrType object, FnDisposer&& disp)
+    T_disposable_ptr(PtrType object, FnDisposer&& disp)
         : m_ptr(object), m_func(std::move(disp))
     {   }
     PtrType get() const { return m_ptr; }
@@ -79,7 +79,7 @@ public:
     }
     PtrType release() { PtrType val = nullptr; std::swap(m_ptr, val); return val;}
 
-    virtual ~TDisposableUniquePointer()
+    virtual ~T_disposable_ptr()
     { if (m_ptr) m_func(release()); }
 };
 

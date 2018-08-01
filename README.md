@@ -43,7 +43,7 @@ You can avoid compiling UI part by disabling a cmake option: -DBUILD_UI=0 .
 # Launch the software
 > export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$DEPENDS_ROOT/lib
 
-## Run the "malamute" message broker with Tau1 name
-> malamute Tau1
+## Run the "malamute" message broker with tau1 name
+> malamute tau1
 
 
