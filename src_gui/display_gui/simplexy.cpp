@@ -9,8 +9,9 @@
 class XYSharedState : public QRunnable
 {
 public:
-    tau1::MetricsContext ctx;
     const char* endpoint = "ipc://@/malamute";
+    std::atomic<bool> quit_flag;
+    static constexpr size_t max_data_bytes = 10 * 1024 * 1024;
 
     void run() override
     {
@@ -18,17 +19,16 @@ public:
 
         reader_thread = std::thread([this]()
         {
-            tau1::MlmClientUPtr ptr_;
-            for ( ; !quit_flag.load() && nullptr == ptr_; )
+            t1_metrics_ctx ctx = t1_init_metrics(METRICS_DATA_PRODUCER::METRICS);
+            mlm_client_t* client_ptr = nullptr;
+            for ( ; !quit_flag.load() && nullptr == client_ptr; )
             {
-                ptr_ = tau1::IMetricsRW::connect(ctx, tau1::IMetricsRW::MetricsConnType::CONSUMER, endpoint);
+                client_ptr = ctx.pfn_connect_consumer(ctx, endpoint, metric_func_err_t());
             }
 
-            reader = std::move(tau1::IMetricsRW(std::move(ptr_), tau1::IMetricsRW::MetricsConnType::CONSUMER));
-
-            for ( tau1::ZmsgUPtr msg = reader.rx(ctx); !quit_flag.load(); msg = reader.rx(ctx))
+            for ( zmsg_t* msg = ctx.pfn_receive(ctx, client_ptr); !quit_flag.load(); msg = ctx.pfn_receive(ctx, client_ptr))
             {
-                for ( zframe_t* pframe = zmsg_first(msg.get()); pframe; pframe = zmsg_next(msg.get()))
+                for ( zframe_t* pframe = zmsg_first(msg); pframe; pframe = zmsg_next(msg))
                 {
                     QVector<QPointF> arr;
                     // copy data of (Zframe_t) into QVector<QPointF>.
@@ -49,8 +49,12 @@ public:
                     }
                     data.emplace_back(std::move(arr));
                 }
-            }
-        });
+                zmsg_destroy(&msg);
+            }//for
+            mlm_client_destroy(&client_ptr);
+            ctx = t1_destroy_metrics(ctx);
+        }
+        );
     }
     virtual ~XYSharedState()
     {
@@ -68,10 +72,8 @@ public:
         return std::move(data);
     }
 
-    std::atomic<bool> quit_flag;
-    static constexpr size_t max_data_bytes = 10 * 1024 * 1024;
+
 private:
-    tau1::IMetricsRW reader;
     std::thread reader_thread;
     std::mutex data_mutex;
     std::list<QVector<QPointF> > data;
@@ -81,8 +83,9 @@ private:
 
 struct DummyWriter : public QRunnable
 {
-    tau1::IMetricsRW writer;
     XYSharedState& m_ref;
+    std::atomic<bool> quit_flag;
+    static constexpr size_t max_data_bytes = 10 * 1024 * 1024;
 
     DummyWriter(XYSharedState& ref) : QRunnable(), m_ref(ref)
     { }
@@ -90,12 +93,16 @@ struct DummyWriter : public QRunnable
     {
         std::thread writer_thread([this]()
         {
-            tau1::MlmClientUPtr ptr_;
-            for ( ; !m_ref.quit_flag.load() && nullptr == ptr_; )
+            t1_metrics_ctx ctx = t1_init_metrics(METRICS_DATA_PRODUCER::METRICS);
+            mlm_client_t* client_ptr = nullptr;
+
+            auto& quit_flag = m_ref.quit_flag;
+
+            for ( ; !quit_flag.load() && (nullptr == client_ptr || !mlm_client_connected(client_ptr)); )
             {
-                ptr_ = tau1::IMetricsRW::connect(m_ref.ctx, tau1::IMetricsRW::MetricsConnType::PRODUCER, m_ref.endpoint);
+                client_ptr = ctx.pfn_connect_emitter(ctx, m_ref.endpoint, metric_func_err_t());
             }
-            writer = std::move(tau1::IMetricsRW(std::move(ptr_), tau1::IMetricsRW::MetricsConnType::PRODUCER));
+
             QVector<QPointF> points_buf;
             points_buf.reserve(1024);
             size_t cnt = 0;
@@ -108,11 +115,13 @@ struct DummyWriter : public QRunnable
                     points_buf[i].ry() = ::sin(points_buf[i].x());
                 }
                 cnt += points_buf.size();
-                tau1::ZmsgUPtr uzmsg(zmsg_new());
-                zmsg_addmem(uzmsg.get(), (void*)points_buf.data(), points_buf.size() * sizeof(QPointF));
 
-                writer.tx(m_ref.ctx, uzmsg);
+                zmsg_t* msg = zmsg_new();
+                zmsg_addmem(msg, (void*)points_buf.data(), points_buf.size() * sizeof(QPointF));
+                ctx.pfn_send(ctx, client_ptr, &msg, metric_func_err_t());
+                zmsg_destroy(&msg);
             }
+            mlm_client_destroy(&client_ptr);
 
         });
         writer_thread.detach();

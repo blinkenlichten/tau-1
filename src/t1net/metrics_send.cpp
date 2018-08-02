@@ -82,12 +82,12 @@ static mlm_client_t* connect_emitter_or_receiver
     return client_ptr;
 }
 
-mlm_client_t* connect_emitter(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
+static mlm_client_t* connect_emitter(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
 {
     return connect_emitter_or_receiver(false/*not listener*/, ctx, endpoint, p_error_fn);
 }
 
-mlm_client_t* connect_receiver(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
+static mlm_client_t* connect_receiver(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn)
 {
     return connect_emitter_or_receiver(true, ctx, endpoint, p_error_fn);
 }
@@ -104,8 +104,8 @@ t1_metrics_ctx t1_init_metrics(METRICS_DATA_PRODUCER type)
     _c.mlm_address = g_mlm_metrics_address;
     _c.timeout = g_metrics_timeout;
     _c.data_type = type;
-    _c.pfn_connect_emitter = &t1_connect_emitter;
-    _c.pfn_connect_consumer = &t1_connect_receiver;
+    _c.pfn_connect_emitter = &tau1::t1_connect_emitter;
+    _c.pfn_connect_consumer = &tau1::t1_connect_receiver;
     _c.pfn_send = &tau1::send;
     _c.pfn_receive = &tau1::receive;
     _c.fn_error = metric_func_err_t();

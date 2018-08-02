@@ -79,9 +79,8 @@ struct t1_metrics_ctx
 };
 
 t1_metrics_ctx t1_init_metrics(METRICS_DATA_PRODUCER type);
-mlm_client_t* t1_connect_emitter(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn);
-mlm_client_t* t1_connect_receiver(t1_metrics_ctx ctx, const char* endpoint, metric_func_err_t p_error_fn);
-/// deallocate or simply 0-fill structure's pointer. @return 0-filled structure.
+/// Destroy connections & free memory.
+/// return 0-filled structure.
 t1_metrics_ctx/*don't ignore it*/ t1_destroy_metrics(t1_metrics_ctx context);
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
